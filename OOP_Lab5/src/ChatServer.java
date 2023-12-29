@@ -1,59 +1,65 @@
 import java.io.*;
 import java.net.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ChatServer {
-    private static List<PrintWriter> clients = new ArrayList<>();
+    private List<PrintWriter> clients = new ArrayList<>();
+    private static final String CLIENTS_FILE = "clients.txt";
 
-    public static void main(String[] args) throws Exception {
-        System.out.println("The chat server is running.");
-        ServerSocket listener = new ServerSocket(8080);
-        try {
+    // Start the server
+    public void start() {
+        try (ServerSocket serverSocket = new ServerSocket(5000)) {
+            System.out.println("Сервер запущен!");
+
             while (true) {
-                new Handler(listener.accept()).start();
+                // Принимаем подключение
+                Socket clientSocket = serverSocket.accept();
+                PrintWriter writer = new PrintWriter(clientSocket.getOutputStream(), true);
+                clients.add(writer);
+
+                // Создаем поток для подключенного клиента
+                Thread clientThread = new Thread(() -> handleClient(clientSocket, writer));
+                clientThread.start();
             }
-        } finally {
-            listener.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    private static class Handler extends Thread {
-        private Socket socket;
-        private BufferedReader in;
-        private PrintWriter out;
-
-        public Handler(Socket socket) {
-            this.socket = socket;
+    // Отправка сообщения всем подключенным клиентам
+    private void broadcastMessage(String message) {
+        for (PrintWriter client : clients) {
+            client.println(message);
         }
+    }
 
-        public void run() {
-            try {
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream(), true);
+    // Сохраняем список клиентов в файл
+    private void saveClientToFile(String clientName) {
+        try (BufferedWriter fileWriter = new BufferedWriter(new FileWriter(CLIENTS_FILE, true))) {
+            fileWriter.write(clientName);
+            fileWriter.newLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-                clients.add(out);
+    // Взаимодействие с подключенными клиентами
+    private void handleClient(Socket clientSocket, PrintWriter writer) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
+            String clientName = reader.readLine();
+            System.out.println("Новый пользователь: " + clientName);
+            saveClientToFile(clientName);
 
-                while (true) {
-                    String input = in.readLine();
-                    if (input == null) {
-                        return;
-                    }
-                    for (PrintWriter writer : clients) {
-                        writer.println(input);
-                    }
-                }
-            } catch (IOException e) {
-                System.out.println(e);
-            } finally {
-                if (out != null) {
-                    clients.remove(out);
-                }
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                    System.out.println(e);
-                }
+            while (true) {
+                // Read messages from the client and broadcast them to others
+                String message = reader.readLine();
+                if (message == null) break;
+                System.out.println("Получено: " + message);
+                broadcastMessage(message);
             }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

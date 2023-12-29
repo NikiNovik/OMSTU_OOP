@@ -1,52 +1,46 @@
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
 public class ChatClient {
-    private BufferedReader in;
-    private PrintWriter out;
-    private Socket socket;
+    // Start the client
+    public void start() {
+        try (Socket socket = new Socket("localhost", 5000)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
 
-    public void connectToServer() throws IOException {
-        socket = new Socket("localhost", 8080);
-        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        out = new PrintWriter(socket.getOutputStream(), true);
+            Scanner scanner = new Scanner(System.in);
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        String serverResponse = in.readLine();
-                        if (serverResponse == null) break;
-                        System.out.println(serverResponse);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
+            // Получаем никнейм пользователя
+            System.out.print("Введите никнейм: ");
+            String name = scanner.nextLine();
+            writer.println(name);
+
+            // Запускаем поток для чтения сообщений с сервера
+            Thread readerThread = new Thread(() -> readMessages(reader));
+            readerThread.start();
+
+            while (true) {
+                // Отправляем сообщение пользователя на сервер (да, тут специльно идет подпись отправителя)
+                System.out.print("[" + name + "]: ");
+                String message = scanner.nextLine();
+                writer.println("[" + name + "]: " + message);
             }
-        }).start();
-    }
 
-    public void sendMessage(String message) {
-        out.println(message);
-    }
-
-    public void disconnect() throws IOException {
-        in.close();
-        out.close();
-        socket.close();
-    }
-
-    public static void main(String[] args) throws IOException {
-        ChatClient client = new ChatClient();
-        client.connectToServer();
-
-        BufferedReader stdIn = new BufferedReader(new InputStreamReader(System.in));
-        String userInput;
-        while ((userInput = stdIn.readLine()) != null) {
-            client.sendMessage(userInput);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+    }
 
-        client.disconnect();
+    // Чтение сообщений от сервера
+    private void readMessages(BufferedReader reader) {
+        try {
+            String message;
+            while ((message = reader.readLine()) != null) {
+                System.out.println(message);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

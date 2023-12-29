@@ -1,5 +1,4 @@
 //4. Создать стек из элементов каталога.
-
 import java.io.File;
 import java.util.Stack;
 
